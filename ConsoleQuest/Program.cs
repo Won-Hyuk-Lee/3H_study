@@ -1,0 +1,391 @@
+using System;
+
+namespace ConsoleQuest
+{
+    class Program
+    {
+        // ==================================================================================
+        // [설정 변수] 게임의 규칙을 정하는 변수들입니다.
+        // ==================================================================================
+        static int mapWidth = 20;   // 맵의 가로 크기
+        static int mapHeight = 20;  // 맵의 세로 크기
+        
+        // 맵 데이터 (0: 안전한 땅, 1: 위험한 숲(몬스터 출몰), 2: 상점)
+        static int[,] gameMapData = new int[20, 20]; 
+
+        // 플레이어 상태 변수
+        static int playerXPosition = 0; // 플레이어의 가로 위치 (0 ~ 19)
+        static int playerYPosition = 0; // 플레이어의 세로 위치 (0 ~ 19)
+        
+        static int currentHealth = 100; // 현재 체력
+        static int maxHealth = 100;     // 최대 체력
+        static int currentGold = 0;     // 현재 가지고 있는 돈
+        static int attackPower = 10;    // 공격력 (가위바위보 승리 시 데미지)
+
+        static bool isGameRunning = true; // 게임이 실행 중인지 확인하는 변수
+
+        // ==================================================================================
+        // [메인 함수] 프로그램이 시작되면 가장 먼저 실행되는 곳입니다.
+        // ==================================================================================
+        static void Main(string[] args)
+        {
+            // 1. 게임 초기화 (맵 만들기, 플레이어 위치 잡기 등)
+            InitializeGame();
+
+            // 2. 게임 루프 (게임이 끝날 때까지 계속 반복)
+            while (isGameRunning)
+            {
+                // 화면 지우고 다시 그리기
+                Render();
+
+                // 키보드 입력 받아서 처리하기
+                ProcessInput();
+            }
+        }
+
+        // ==================================================================================
+        // [초기화] 게임 시작 전 준비 작업을 하는 함수입니다.
+        // ==================================================================================
+        static void InitializeGame()
+        {
+            Console.CursorVisible = false; // 커서 깜빡임 숨기기
+            
+            // 맵 데이터 채우기
+            // 기본은 0(안전)으로 되어있고, 특정 위치에 1(위험)과 2(상점)를 배치합니다.
+            
+            // 맵 전체를 안전한 땅(0)으로 초기화
+            for (int y = 0; y < mapHeight; y++)
+            {
+                for (int x = 0; x < mapWidth; x++)
+                {
+                    gameMapData[y, x] = 0;
+                }
+            }
+
+            // 위험한 숲(1) 배치 (랜덤하게 30개 정도 배치해봅시다)
+            Random random = new Random();
+            for (int i = 0; i < 30; i++)
+            {
+                int randomX = random.Next(0, mapWidth);
+                int randomY = random.Next(0, mapHeight);
+                // (0,0)은 플레이어 시작 위치니까 피해서 배치
+                if (randomX != 0 || randomY != 0)
+                {
+                    gameMapData[randomY, randomX] = 1;
+                }
+            }
+
+            // 상점(2) 배치 (맵의 오른쪽 아래 구석에 배치)
+            gameMapData[18, 18] = 2;
+        }
+
+        // ==================================================================================
+        // [화면 출력] 맵, 플레이어, 상태창을 화면에 그리는 함수입니다.
+        // ==================================================================================
+        static void Render()
+        {
+            Console.SetCursorPosition(0, 0); // 커서를 맨 위로 이동
+
+            // 1. 맵 그리기
+            for (int y = 0; y < mapHeight; y++)
+            {
+                for (int x = 0; x < mapWidth; x++)
+                {
+                    // 플레이어 위치라면 플레이어 문자(@) 출력
+                    if (x == playerXPosition && y == playerYPosition)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.Write("웃"); // 플레이어 캐릭터
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        // 맵의 종류에 따라 다른 글자 출력
+                        int tileType = gameMapData[y, x];
+                        if (tileType == 0) // 안전
+                        {
+                            Console.ForegroundColor = ConsoleColor.Gray;
+                            Console.Write(". ");
+                        }
+                        else if (tileType == 1) // 위험
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.Write("숲");
+                        }
+                        else if (tileType == 2) // 상점
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.Write("집");
+                        }
+                        Console.ResetColor();
+                    }
+                }
+                Console.WriteLine(); // 줄바꿈
+            }
+
+            // 2. 상태창 그리기 (맵 아래에 표시)
+            Console.WriteLine("========================================");
+            Console.WriteLine($"[상태] 체력: {currentHealth}/{maxHealth} | 돈: {currentGold}G | 공격력: {attackPower}");
+            Console.WriteLine("========================================");
+            Console.WriteLine("[조작] 방향키: 이동 | Q: 종료");
+            Console.WriteLine("----------------------------------------");
+            
+            // 현재 위치에 대한 설명 출력
+            int currentTile = gameMapData[playerYPosition, playerXPosition];
+            if (currentTile == 0) Console.WriteLine("안전한 평원입니다. 마음이 편안합니다.");
+            else if (currentTile == 1) Console.WriteLine("으스스한 숲입니다... 몬스터가 나올 것 같습니다!");
+            else if (currentTile == 2) Console.WriteLine("상점입니다. 물건을 살 수 있습니다.");
+        }
+
+        // ==================================================================================
+        // [입력 처리] 키보드 입력을 받아서 이동하거나 행동하는 함수입니다.
+        // ==================================================================================
+        static void ProcessInput()
+        {
+            ConsoleKeyInfo keyInfo = Console.ReadKey(true); // 키 입력 대기
+
+            // 임시로 이동할 위치를 계산하기 위한 변수
+            int nextX = playerXPosition;
+            int nextY = playerYPosition;
+
+            switch (keyInfo.Key)
+            {
+                case ConsoleKey.LeftArrow:
+                    // 왼쪽으로 가려면 X좌표를 1 줄입니다.
+                    nextX = playerXPosition - 1;
+                    break;
+
+                case ConsoleKey.RightArrow:
+                    // 오른쪽으로 가려면 X좌표를 1 늘립니다.
+                    nextX = playerXPosition + 1;
+                    break;
+
+                // ---------------------------------------------------------
+                // [과제 1] 위쪽, 아래쪽 이동 구현하기
+                // ---------------------------------------------------------
+                // 힌트: 
+                // 위쪽(UpArrow)으로 가려면 Y좌표를 어떻게 해야 할까요? (화면 위쪽이 Y=0 입니다)
+                // 아래쪽(DownArrow)으로 가려면 Y좌표를 어떻게 해야 할까요?
+                // case ConsoleKey.UpArrow: ...
+                // case ConsoleKey.DownArrow: ...
+                // ---------------------------------------------------------
+                
+                // TODO: 여기에 코드를 작성하세요 (과제 1)
+                
+                // ---------------------------------------------------------
+
+                case ConsoleKey.Q:
+                    isGameRunning = false;
+                    return;
+            }
+
+            // 이동하려는 곳이 맵 밖인지 확인 (맵 밖으로 나가면 안되니까!)
+            if (nextX >= 0 && nextX < mapWidth && nextY >= 0 && nextY < mapHeight)
+            {
+                // 맵 안이라면 실제로 플레이어 위치를 바꿉니다.
+                playerXPosition = nextX;
+                playerYPosition = nextY;
+
+                // 이동한 자리에서 무슨 일이 일어날지 체크합니다.
+                CheckTileEvent();
+            }
+        }
+
+        // ==================================================================================
+        // [이벤트 체크] 이동한 타일에서 몬스터를 만나거나 상점에 들어가는 로직입니다.
+        // ==================================================================================
+        static void CheckTileEvent()
+        {
+            int tileType = gameMapData[playerYPosition, playerXPosition];
+
+            if (tileType == 1) // 위험한 숲
+            {
+                // 30% 확률로 몬스터 만남
+                Random random = new Random();
+                if (random.Next(0, 100) < 30)
+                {
+                    StartBattle();
+                }
+            }
+            else if (tileType == 2) // 상점
+            {
+                EnterShop();
+            }
+        }
+
+        // ==================================================================================
+        // [전투] 몬스터와 가위바위보 대결을 합니다.
+        // ==================================================================================
+        static void StartBattle()
+        {
+            Console.Clear();
+            
+            // 몬스터 그림 출력 (아스키 아트)
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("           / \\__");
+            Console.WriteLine("          (    @\\___");
+            Console.WriteLine("          /         O");
+            Console.WriteLine("         /   (_____/");
+            Console.WriteLine("        /_____/   U");
+            Console.WriteLine("");
+            Console.WriteLine("   야생의 슬라임이 나타났다!");
+            Console.ResetColor();
+            Console.WriteLine("========================================");
+
+            // 가위바위보 로직
+            Console.WriteLine("가위바위보 대결! (1: 가위, 2: 바위, 3: 보)");
+            Console.Write("입력: ");
+            
+            string input = Console.ReadLine();
+            int playerChoice = 0;
+            
+            // 입력값이 숫자인지 확인
+            if (int.TryParse(input, out playerChoice) && (playerChoice >= 1 && playerChoice <= 3))
+            {
+                Random random = new Random();
+                int monsterChoice = random.Next(1, 4); // 1~3 랜덤
+
+                string[] handNames = { "없음", "가위", "바위", "보" };
+                
+                Console.WriteLine($"\n플레이어: {handNames[playerChoice]} vs 몬스터: {handNames[monsterChoice]}");
+
+                // 승패 판정 (가위(1) < 바위(2) < 보(3) < 가위(1))
+                // 비김: 같을 때
+                // 이김: (1,3), (2,1), (3,2)
+                
+                bool isWin = false;
+                bool isDraw = (playerChoice == monsterChoice);
+
+                if (!isDraw)
+                {
+                    if ((playerChoice == 1 && monsterChoice == 3) || 
+                        (playerChoice == 2 && monsterChoice == 1) || 
+                        (playerChoice == 3 && monsterChoice == 2))
+                    {
+                        isWin = true;
+                    }
+                }
+
+                if (isDraw)
+                {
+                    Console.WriteLine("비겼습니다! 아무 일도 일어나지 않습니다.");
+                }
+                else if (isWin)
+                {
+                    int rewardGold = random.Next(10, 30);
+                    currentGold += rewardGold;
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"이겼습니다! 몬스터를 물리쳤습니다.");
+                    Console.WriteLine($"{rewardGold} 골드를 얻었습니다!");
+                    Console.ResetColor();
+                }
+                else
+                {
+                    int damage = random.Next(5, 15);
+                    currentHealth -= damage;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"졌습니다... 몬스터에게 맞았습니다.");
+                    Console.WriteLine($"체력이 {damage} 깎였습니다.");
+                    Console.ResetColor();
+                }
+            }
+            else
+            {
+                Console.WriteLine("잘못된 입력입니다. 도망쳤습니다.");
+            }
+
+            Console.WriteLine("\n아무 키나 누르면 맵으로 돌아갑니다.");
+            Console.ReadKey();
+            
+            // 체력이 0 이하면 게임 오버 처리 (간단하게)
+            if (currentHealth <= 0)
+            {
+                Console.Clear();
+                Console.WriteLine("체력이 모두 소진되었습니다... GAME OVER");
+                isGameRunning = false;
+            }
+        }
+
+        // ==================================================================================
+        // [상점] 아이템을 구매하는 곳입니다.
+        // ==================================================================================
+        static void EnterShop()
+        {
+            bool inShop = true;
+            while (inShop)
+            {
+                Console.Clear();
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("============== [ 상 점 ] ==============");
+                Console.ResetColor();
+                Console.WriteLine($"현재 가진 돈: {currentGold} G");
+                Console.WriteLine($"현재 체력: {currentHealth}/{maxHealth}");
+                Console.WriteLine($"현재 공격력: {attackPower}");
+                Console.WriteLine("---------------------------------------");
+                Console.WriteLine("1. 빨간 물약 (체력 20 회복) - 가격: 30 G");
+                Console.WriteLine("2. 튼튼한 갑옷 (최대 체력 +20 증가) - 가격: 100 G");
+                Console.WriteLine("3. 날카로운 검 (공격력 +5 증가) - 가격: 150 G");
+                Console.WriteLine("0. 나가기");
+                Console.WriteLine("=======================================");
+                Console.Write("무엇을 구매하시겠습니까? (번호 입력): ");
+
+                string input = Console.ReadLine();
+
+                if (input == "0")
+                {
+                    inShop = false; // 상점 루프 종료
+                    Console.WriteLine("상점을 나갑니다.");
+                    System.Threading.Thread.Sleep(1000); // 1초 대기
+                }
+                else if (input == "1") // 빨간 물약
+                {
+                    int price = 30;
+                    
+                    // ---------------------------------------------------------
+                    // [과제 2] 구매 로직 구현하기
+                    // ---------------------------------------------------------
+                    // 힌트:
+                    // 1. 돈이 충분한지 확인해야 합니다. (if 문 사용)
+                    //    조건: currentGold가 price보다 크거나 같아야 함
+                    // 2. 돈이 충분하다면:
+                    //    - 내 돈(currentGold)에서 가격(price)을 뺍니다.
+                    //    - 체력(currentHealth)을 20 늘려줍니다.
+                    //    - (선택) 체력이 최대 체력(maxHealth)을 넘지 않게 해주면 더 좋습니다.
+                    //    - "구매 성공!" 이라고 출력해줍니다.
+                    // 3. 돈이 부족하다면:
+                    //    - "돈이 부족합니다!" 라고 출력해줍니다.
+                    // ---------------------------------------------------------
+
+                    // TODO: 여기에 코드를 작성하세요 (과제 2 - 물약)
+                    Console.WriteLine("아직 구매 기능이 완성되지 않았습니다! (과제)");
+                    System.Threading.Thread.Sleep(1000);
+
+                    // ---------------------------------------------------------
+                }
+                else if (input == "2") // 갑옷
+                {
+                    int price = 100;
+                    
+                    // TODO: 여기에 코드를 작성하세요 (과제 2 - 갑옷)
+                    // 효과: maxHealth를 20 증가, currentHealth도 20 증가
+                    Console.WriteLine("아직 구매 기능이 완성되지 않았습니다! (과제)");
+                    System.Threading.Thread.Sleep(1000);
+                }
+                else if (input == "3") // 검
+                {
+                    int price = 150;
+
+                    // TODO: 여기에 코드를 작성하세요 (과제 2 - 검)
+                    // 효과: attackPower를 5 증가
+                    Console.WriteLine("아직 구매 기능이 완성되지 않았습니다! (과제)");
+                    System.Threading.Thread.Sleep(1000);
+                }
+                else
+                {
+                    Console.WriteLine("잘못된 입력입니다.");
+                    System.Threading.Thread.Sleep(500);
+                }
+            }
+        }
+    }
+}
