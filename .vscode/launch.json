@@ -14,7 +14,7 @@
             "args": [],
             "cwd": "${workspaceFolder}/ConsoleQuest",
             // '콘솔' 필드에 대한 자세한 내용은 https://aka.ms/VSCode-CS-LaunchJson-Console을(를) 참조하세요.
-            "console": "internalConsole",
+            "console": "externalTerminal",
             "stopAtEntry": false
         },
         {
