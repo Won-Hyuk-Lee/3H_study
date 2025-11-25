@@ -8,11 +8,11 @@ namespace ConsoleQuest
         // [설정 변수] 게임의 규칙을 정하는 변수들
         // ==================================================================================
 
-        //static 이란 이 머듈내부에서 전역으로 사용이 가능한 변수. 예를 들면 다른 클래스에서도 사용 가능
+        //static 이란 이 모듈내부에서 전역으로 사용이 가능한 변수. 예를 들면 다른 클래스에서도 사용 가능
         static int mapWidth = 20;   // 맵의 가로 크기
         static int mapHeight = 20;  // 맵의 세로 크기
 
-        // 맵 데이터 (0: 안전한 땅, 1: 위험한 숲(몬스터 출몰), 2: 상점, 3: 골인 지점)
+        // 맵 데이터 (0: 기본땅(몬스터 출몰 가능), 1: 위험한 숲(몬스터 출몰 높음), 2: 상점, 3: 골인 지점)
         static int[,] gameMapData = new int[20, 20];
 
         // 플레이어 상태 변수
@@ -76,7 +76,7 @@ namespace ConsoleQuest
             // [과제 4] 난이도 선택 함수 호출하기
             // ---------------------------------------------------------
             // TODO: 여기에 SelectDifficulty() 함수를 호출하는 코드를 작성하세요.
-            // SelectDifficulty();
+
             // ---------------------------------------------------------
 
             // 맵 데이터 채우기
@@ -96,12 +96,12 @@ namespace ConsoleQuest
             // ---------------------------------------------------------
             // 힌트:
             // difficulty 변수의 값에 따라 forestCount와 shopCount를 다르게 설정해보세요.
-            // 쉬움(0): 숲 20개, 상점 3개
-            // 보통(1): 숲 30개, 상점 2개
-            // 어려움(2): 숲 40개, 상점 1개
+            // 쉬움(0): 숲 40개, 상점 3개
+            // 보통(1): 숲 60개, 상점 2개
+            // 어려움(2): 숲 80개, 상점 1개
 
-            int forestCount = 30; // 기본값
-            int shopCount = 2;    // 기본값
+            int forestCount = 40; // 기본값
+            int shopCount = 3;    // 기본값
 
             // TODO: 여기에 if문이나 switch문을 사용해서 코드를 작성하세요.
 
@@ -227,10 +227,10 @@ namespace ConsoleQuest
 
             // 현재 위치에 대한 설명 출력
             int currentTile = gameMapData[playerYPosition, playerXPosition];
-            if (currentTile == 0) Console.WriteLine("안전한 평원입니다. 마음이 편안합니다.");
-            else if (currentTile == 1) Console.WriteLine("으스스한 숲입니다... 몬스터가 나올 것 같습니다!");
-            else if (currentTile == 2) Console.WriteLine("상점입니다. 물건을 살 수 있습니다.");
-            else if (currentTile == 3) Console.WriteLine("목적지에 도착했습니다! ★");
+            if (currentTile == 0) Console.WriteLine("평원입니다. 방심하면 몬스터가 튀어나옵니다.     ");
+            else if (currentTile == 1) Console.WriteLine("으스스한 숲입니다... 몬스터가 나올 것 같습니다! ");
+            else if (currentTile == 2) Console.WriteLine("상점입니다. 물건을 살 수 있습니다.              ");
+            else if (currentTile == 3) Console.WriteLine("목적지에 도착했습니다! ★                       ");
         }
 
         // ==================================================================================
@@ -284,12 +284,26 @@ namespace ConsoleQuest
         static void CheckTileEvent()
         {
             int tileType = gameMapData[playerYPosition, playerXPosition];
+            Random random = new Random();
 
             if (tileType == 1) // 위험한 숲
             {
                 // 30% 확률로 몬스터 만남
-                Random random = new Random();
-                if (random.Next(0, 100) < 30)
+                if (random.Next(0, 100) < 40)
+                {
+                    StartBattle();
+                }
+            }
+            else if (tileType == 0) // 일반 평지 (난이도별 확률 추가)
+            {
+                // 난이도에 따라 평지에서도 몬스터를 만날 확률 설정
+                int encounterChance = 0;
+                
+                if (difficulty == 0) encounterChance = 5;       // 쉬움: 5% (매우 낮음)
+                else if (difficulty == 1) encounterChance = 15; // 보통: 15%
+                else encounterChance = 30;                      // 어려움: 30% (꽤 높음)
+
+                if (random.Next(0, 100) < encounterChance)
                 {
                     StartBattle();
                 }
@@ -339,6 +353,7 @@ namespace ConsoleQuest
             // 힌트:
             // 1. 랜덤 숫자를 뽑습니다. (예: 0~2)
             // 2. 숫자에 따라 몬스터의 이름, 공격력, 보상을 다르게 설정합니다.
+            //    (난이도에 따라 강한 몬스터가 나올 확률을 다르게 해보세요!)
             //    - 0: 슬라임 (약함)
             //    - 1: 고블린 (보통)
             //    - 2: 오크 (강함)
@@ -367,6 +382,7 @@ namespace ConsoleQuest
             Console.WriteLine("가위바위보 대결! (1: 가위, 2: 바위, 3: 보)");
             Console.Write("입력: ");
 
+            FlushInputBuffer(); // 입력 버퍼 비우기
             string? input = Console.ReadLine();
             int playerChoice = 0;
 
@@ -415,19 +431,31 @@ namespace ConsoleQuest
             }
             else
             {
-                Console.WriteLine("잘못된 입력입니다. 도망쳤습니다.");
+                // 잘못된 입력 시 패널티 적용 (패배 처리)
+                currentHealth -= monsterDamage;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("잘못된 입력입니다. 당황해서 도망쳤습니다! (패배 처리)");
+                Console.WriteLine($"도망치다가 {monsterName}에게 등을 맞았습니다.");
+                Console.WriteLine($"체력이 {monsterDamage} 깎였습니다.");
+                Console.ResetColor();
             }
 
             Console.WriteLine("\n아무 키나 누르면 맵으로 돌아갑니다.");
+            FlushInputBuffer();
             Console.ReadKey();
 
             // 체력이 0 이하면 게임 오버 처리
             if (currentHealth <= 0)
             {
                 Console.Clear();
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("체력이 모두 소진되었습니다... GAME OVER");
+                Console.ResetColor();
                 isGameRunning = false;
             }
+
+            // 화면 잔상 제거
+            Console.Clear();
         }
 
         // ==================================================================================
@@ -453,6 +481,7 @@ namespace ConsoleQuest
                 Console.WriteLine("=======================================");
                 Console.Write("무엇을 구매하시겠습니까? (번호 입력): ");
 
+                FlushInputBuffer(); // 입력 버퍼 비우기
                 string? input = Console.ReadLine();
 
                 if (input == "0")
@@ -498,6 +527,19 @@ namespace ConsoleQuest
                     Console.WriteLine("잘못된 입력입니다.");
                     System.Threading.Thread.Sleep(500);
                 }
+            }
+            // 화면 잔상 제거
+            Console.Clear();
+        }
+
+        // ==================================================================================
+        // [유틸리티] 입력 버퍼를 비우는 함수
+        // ==================================================================================
+        static void FlushInputBuffer()
+        {
+            while (Console.KeyAvailable)
+            {
+                Console.ReadKey(true);
             }
         }
     }
